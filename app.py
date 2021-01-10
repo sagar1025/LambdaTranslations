@@ -5,6 +5,7 @@ import logging
 import boto3
 from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
+import re
 
 app = Flask(__name__)
 
@@ -30,11 +31,16 @@ def Validate_API_Key(func):
             abort(401)
     return decorated_function
 
+def ValidData(txt):
+    if isinstance(txt, str):
+        return True if re.match("^[a-zA-Z0-9 ]*$", txt) else False
+    return False
+
 def GetTranslation(txt, lang):
     #call to AWS translate
     boto_session = boto3.Session(region_name='us-east-1')
     translateClient = boto_session.client('translate')
-    print('calling translate')
+    #print('calling translate')
     try:
         response = translateClient.translate_text(
             Text=txt,
@@ -44,11 +50,12 @@ def GetTranslation(txt, lang):
         if not "TranslatedText" in response:
             return None, False
         else:
-            print(response["TranslatedText"])
             return response["TranslatedText"], True
+
     except ClientError as e:
-        print(e)
         return None, False
+
+    return None, False
 
 def GetTranslationFromDB(txt, lang):
     #if translation exists, return translation
@@ -62,7 +69,7 @@ def GetTranslationFromDB(txt, lang):
         if "ResponseMetadata" in response and "HTTPStatusCode" in response["ResponseMetadata"] and response["ResponseMetadata"]["HTTPStatusCode"] == 200 \
             and "Item" in response:
             #valid response and key is found
-            print(response)
+            #print(response)
             #here lang is the "column" in the dynamodb table. For example, if "ar" is passed in the "ar" will contain the arabic text. See dynamodb table schema for more info
             if lang in response["Item"]:
                 #translation exists
@@ -81,10 +88,10 @@ def GetTranslationFromDB(txt, lang):
                                 },
                                 UpdateExpression='SET ' + lang + ' = :languageCol',
                                 ExpressionAttributeValues={
-                                    ':languageCol': translatedText
+                                    ':languageCol': translatedText 
                                 }
                             )
-                            print(updateResponse)
+                            #print(updateResponse)
                             if "ResponseMetadata" in response and "HTTPStatusCode" in response["ResponseMetadata"] and response["ResponseMetadata"]["HTTPStatusCode"] == 200:
                                 return translatedText, True
                         except Exception as e:
@@ -95,7 +102,7 @@ def GetTranslationFromDB(txt, lang):
         else:
             #Key does not exist. In this case, we fetch the translation and add a new Key to the table.
             try:
-                print("Adding new Key")
+                #print("Adding new Key")
                 translatedText, isSuccess = GetTranslation(txt, lang)
                 if isSuccess:
                     #Add new Key and value pair to table
@@ -106,7 +113,7 @@ def GetTranslationFromDB(txt, lang):
                                 lang: translatedText
                             }
                         )
-                        print(addResponse)
+                        #print(addResponse)
                         if "ResponseMetadata" in response and "HTTPStatusCode" in response["ResponseMetadata"] and response["ResponseMetadata"]["HTTPStatusCode"] == 200:
                             return translatedText, True
                     except Exception as e:
@@ -123,20 +130,14 @@ def GetTranslationFromDB(txt, lang):
 @app.route('/translate', methods=['POST'])
 @cross_origin()
 #@Validate_API_Key
-def translate():
+def Translate():
     if request.args is not None:
         data = request.get_json()
-        if "language" in data and "txt" in data and data["language"] in validLangs:
-            ######
-            print("valid request")
+        if "language" in data and "txt" in data and data["language"] in validLangs and len(data["language"]) == 2 and len(data["txt"]) > 1 \
+            and ValidData(data["language"]) and ValidData(data["txt"]):
+
             txt, isSuccess = GetTranslationFromDB(data["txt"], data["language"])
-            #if Text in DynamoDB
-            #   get translation and return
-            #else
-            #   call Translate
-            #   store in db
-            #   return translation
-            ######
+
             if isSuccess:
                 return jsonify(isSuccess= isSuccess, data = txt)
             else:
