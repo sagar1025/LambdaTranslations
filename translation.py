@@ -133,8 +133,8 @@ def GetTranslationFromDB(txt, lang):
 def Translate():
     if request.args is not None:
         data = request.get_json()
-        if "language" in data and "txt" in data and data["language"] in validLangs and len(data["language"]) == 2 and len(data["txt"]) > 1 \
-            and ValidData(data["language"]) and ValidData(data["txt"]):
+        if data and "language" in data and "txt" in data and data["language"] in validLangs and len(data["language"]) == 2 and len(data["txt"]) > 1 \
+            and ValidData(data["language"]):
 
             txt, isSuccess = GetTranslationFromDB(data["txt"], data["language"])
 
@@ -150,11 +150,11 @@ def Translate():
 
 if __name__ == '__main__':
     try:
-        #set debug/prod mode
-        if os.getenv('FLASK_ENV') == 'development':
-            application.debug = True
-        else:
-            application.debug = False
+        # #set debug/prod mode
+        # if os.getenv('FLASK_ENV') == 'development':
+        #     application.debug = True
+        # else:
+        #     application.debug = False
 
         application.run(threaded=True)
     except Exception as e:
