@@ -6,6 +6,7 @@ import boto3
 from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 import re
+import hashlib
 
 app = Flask(__name__)
 
@@ -65,7 +66,8 @@ def GetTranslationFromDB(txt, lang):
     table = dynamodb.Table('Translations')
 
     try:
-        response = table.get_item(Key = {"SrcString": txt} )
+        md5hashTxt = hashlib.md5(txt.encode('utf-8')).hexdigest()
+        response = table.get_item(Key = {"SrcString": md5hashTxt } )
         if "ResponseMetadata" in response and "HTTPStatusCode" in response["ResponseMetadata"] and response["ResponseMetadata"]["HTTPStatusCode"] == 200 \
             and "Item" in response:
             #valid response and key is found
@@ -84,7 +86,7 @@ def GetTranslationFromDB(txt, lang):
                         try:
                             updateResponse = table.update_item(
                                 Key={
-                                    "SrcString": txt
+                                    "SrcString": md5hashTxt
                                 },
                                 UpdateExpression='SET ' + lang + ' = :languageCol',
                                 ExpressionAttributeValues={
@@ -109,7 +111,7 @@ def GetTranslationFromDB(txt, lang):
                     try:
                         addResponse = table.put_item(
                             Item={
-                                "SrcString": txt,
+                                "SrcString": md5hashTxt,
                                 lang: translatedText
                             }
                         )
