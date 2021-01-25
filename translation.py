@@ -3,7 +3,7 @@ from flask_cors import CORS, cross_origin
 import json
 import logging
 import boto3
-from boto3.dynamodb.conditions import Key
+from boto3.dynamodb.conditions import Key, Attr
 from botocore.exceptions import ClientError
 import re
 import hashlib
@@ -37,11 +37,14 @@ def ValidData(txt):
         return True if re.match("^[a-zA-Z0-9 ]*$", txt) else False
     return False
 
+def chunks(l, n):
+    for i in range(0, len(l), n):
+        yield l[i:i + n]
+
 def GetTranslation(txt, lang):
     #call to AWS translate
     boto_session = boto3.Session(region_name='us-east-1')
     translateClient = boto_session.client('translate')
-    #print('calling translate')
     try:
         response = translateClient.translate_text(
             Text=txt,
@@ -57,6 +60,88 @@ def GetTranslation(txt, lang):
         return None, False
 
     return None, False
+
+def GetBulkTranslationFromDB(txtList,  lang):
+    boto_session = boto3.Session(region_name='us-east-1')
+    dynamodb = boto_session.resource('dynamodb')
+    table = dynamodb.Table('Translations')
+    returnResp =[]
+    try:
+        chunksList = chunks(txtList, 50)
+        for chunk in chunksList:
+            print("in chunk")
+            hashLstPair = [(hashlib.md5(txt.encode('utf-8')).hexdigest(),txt) for txt in chunk]
+            # taken from https://github.com/awsdocs/aws-doc-sdk-examples/blob/211af2ea62cbdbd806bb59e74f54a6bc9d747ecc/python/example_code/dynamodb/batching/dynamo_batching.py
+            #list of keys passed must be unique. This is why its converted to a set first. 
+            batch_keys = {
+                table.name: {
+                    "Keys": [{"SrcString": md5hashTxt} for md5hashTxt, txt in list(set(hashLstPair))]
+                }
+            }
+            try:
+                tries = 0
+                max_tries = 5
+                sleepy_time = 1  # Start with 1 second of sleep, then exponentially increase.
+                retrieved = {key: [] for key in batch_keys}
+                while tries < max_tries:
+                    response = dynamodb.batch_get_item(RequestItems=batch_keys)
+                    # Collect any retrieved items and retry unprocessed keys.
+                    for key in response.get('Responses', []):
+                        retrieved[key] += response['Responses'][key]
+                    unprocessed = response['UnprocessedKeys']
+                    if len(unprocessed) > 0:
+                        batch_keys = unprocessed
+                        unprocessed_count = sum(
+                            [len(batch_key['Keys']) for batch_key in batch_keys.values()])
+                        logger.info("%s unprocessed keys returned. Sleep, then retry.", unprocessed_count)
+                        tries += 1
+                        if tries < max_tries:
+                            logger.info("Sleeping for %s seconds.", sleepy_time)
+                            time.sleep(sleepy_time)
+                            sleepy_time = min(sleepy_time * 2, 32)
+                    else:
+                        break
+
+                found_items = []
+                for itm in retrieved['Translations']:
+                    found_items.append(itm['SrcString'])
+
+                
+                hashLst = [item[0] for item in hashLstPair]
+
+                # yields the elements in list_2 that are NOT in list_1
+                not_found = [item for item in hashLst if item not in found_items]
+
+                if not_found:
+                    for hashTxt in not_found:
+                        f = [item for item in hashLstPair if item[0] == hashTxt]
+                        if f:
+                            for elm in f:
+                                translation, isSuccess = GetTranslationFromDB(elm[1], lang) #Get and Store the translation for the individual ones which were not found
+                            if isSuccess:
+                                tObj = {}
+                                tObj['strHash'] = elm[0]
+                                tObj['translatedText'] = translation
+                                returnResp.append(tObj)
+                            else:
+                                print("Error. Cannot insert")
+                
+                #construct response object
+                for itm in retrieved['Translations']:
+                    tObj = {}
+                    tObj['strHash'] = itm['SrcString']
+                    tObj['translatedText'] = itm[lang]
+                    returnResp.append(tObj)
+            except Exception as e:
+                print(e)
+                return None, False
+
+    except Exception as e:
+        print(e)
+        return None, False
+
+    return returnResp, True
+
 
 def GetTranslationFromDB(txt, lang):
     #if translation exists, return translation
@@ -135,15 +220,25 @@ def GetTranslationFromDB(txt, lang):
 def Translate():
     if request.args is not None:
         data = request.get_json()
-        if data and "language" in data and "txt" in data and data["language"] in validLangs and len(data["language"]) == 2 and len(data["txt"]) > 1 \
-            and ValidData(data["language"]):
+        if data and "language" in data and data["language"] in validLangs and ValidData(data["language"]):
+            if "txt" in data and len(data["txt"]) > 0 and isinstance(data["txt"], str):
+                txt, isSuccess = GetTranslationFromDB(data["txt"], data["language"])
+                if isSuccess:
+                    return jsonify(isSuccess= isSuccess, data = txt)
+                else:
+                    return jsonify(isSuccess= isSuccess, data = None)
 
-            txt, isSuccess = GetTranslationFromDB(data["txt"], data["language"])
+            elif isinstance(data["TextList"], list):
+                print(len(data["TextList"]))
+                txt, isSuccess = GetBulkTranslationFromDB(data["TextList"], data["language"])
 
-            if isSuccess:
-                return jsonify(isSuccess= isSuccess, data = txt)
+                if isSuccess:
+                    return jsonify(isSuccess= isSuccess, data = txt)
+                else:
+                    return jsonify(isSuccess= isSuccess, data = None)
             else:
-                return jsonify(isSuccess= isSuccess, data = None)
+                return "Invalid Request", 400
+
         else:
             return "Invalid Request", 400
     return "Invalid Request", 400
