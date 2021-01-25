@@ -69,7 +69,6 @@ def GetBulkTranslationFromDB(txtList,  lang):
     try:
         chunksList = chunks(txtList, 50)
         for chunk in chunksList:
-            print("in chunk")
             hashLstPair = [(hashlib.md5(txt.encode('utf-8')).hexdigest(),txt) for txt in chunk]
             # taken from https://github.com/awsdocs/aws-doc-sdk-examples/blob/211af2ea62cbdbd806bb59e74f54a6bc9d747ecc/python/example_code/dynamodb/batching/dynamo_batching.py
             #list of keys passed must be unique. This is why its converted to a set first. 
@@ -109,7 +108,7 @@ def GetBulkTranslationFromDB(txtList,  lang):
                 
                 hashLst = [item[0] for item in hashLstPair]
 
-                # yields the elements in list_2 that are NOT in list_1
+                # yields the elements in list_2 that are NOT in list_1. Basically figure out which hashed items were found and which were not found.
                 not_found = [item for item in hashLst if item not in found_items]
 
                 if not_found:
@@ -229,7 +228,6 @@ def Translate():
                     return jsonify(isSuccess= isSuccess, data = None)
 
             elif isinstance(data["TextList"], list):
-                print(len(data["TextList"]))
                 txt, isSuccess = GetBulkTranslationFromDB(data["TextList"], data["language"])
 
                 if isSuccess:
