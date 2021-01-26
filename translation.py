@@ -10,7 +10,7 @@ import hashlib
 
 app = Flask(__name__)
 
-validLangs = ["ar","fr"]
+validLangs = ["ar"]
 
 #decorator to validate each api call
 def Validate_API_Key(func):
