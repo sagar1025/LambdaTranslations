@@ -7,6 +7,8 @@ from boto3.dynamodb.conditions import Key, Attr
 from botocore.exceptions import ClientError
 import re
 import hashlib
+import os
+from functools import wraps
 
 app = Flask(__name__)
 
@@ -20,7 +22,7 @@ def Validate_API_Key(func):
         if request.headers.get('Authorization'):
             token_header = request.headers['Authorization']
             auth_token = token_header.split(maxsplit=1)[1] #this removes the Bearer part of the value
-            if auth_token == os.getenv('ApiKey'):
+            if auth_token == os.environ['ApiKey']:
                 return func(*args, **kwargs)
             else:
                 logging.error('invalid APIKEY in header.')
@@ -215,7 +217,7 @@ def GetTranslationFromDB(txt, lang):
 
 @app.route('/translate', methods=['POST'])
 @cross_origin()
-#@Validate_API_Key
+@Validate_API_Key
 def Translate():
     if request.args is not None:
         data = request.get_json()

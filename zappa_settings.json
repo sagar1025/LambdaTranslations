@@ -2,9 +2,9 @@
     "dev": {
         "app_function": "translation.app",
         "aws_region": "us-east-2",
-        "profile_name": "default",
+        "profile_name": "dunyanalambda",
         "project_name": "translation",
         "runtime": "python3.6",
-        "s3_bucket": "zappa-ohtqt2fr1"
+        "s3_bucket": "zappa-dunyana-translate-ohtqt2fr1"
     }
 }
