@@ -69,7 +69,7 @@ def GetBulkTranslationFromDB(txtList,  lang):
     table = dynamodb.Table('Translations')
     returnResp =[]
     try:
-        chunksList = chunks(txtList, 50)
+        chunksList = chunks(txtList, 70)
         for chunk in chunksList:
             hashLstPair = [(hashlib.md5(txt.encode('utf-8')).hexdigest(),txt) for txt in chunk]
             # taken from https://github.com/awsdocs/aws-doc-sdk-examples/blob/211af2ea62cbdbd806bb59e74f54a6bc9d747ecc/python/example_code/dynamodb/batching/dynamo_batching.py
@@ -118,14 +118,25 @@ def GetBulkTranslationFromDB(txtList,  lang):
                         f = [item for item in hashLstPair if item[0] == hashTxt]
                         if f:
                             for elm in f:
-                                translation, isSuccess = GetTranslationFromDB(elm[1], lang) #Get and Store the translation for the individual ones which were not found
-                            if isSuccess:
-                                tObj = {}
-                                tObj['strHash'] = elm[0]
-                                tObj['translatedText'] = translation
-                                returnResp.append(tObj)
-                            else:
-                                print("Error. Cannot insert")
+                                #print(elm)
+                                #translation, isSuccess = GetTranslationFromDB(elm[1], lang) #Get and Store the translation for the individual ones which were not found
+                                translatedText, isSuccess = GetTranslation(elm[1], lang)
+                                if isSuccess and len(translatedText) > 0:
+                                    try:
+                                        addResponse = table.put_item(
+                                            Item={
+                                                "SrcString": elm[0],
+                                                lang: translatedText
+                                            }
+                                        )
+                                        #print(addResponse)
+                                        if "ResponseMetadata" in response and "HTTPStatusCode" in response["ResponseMetadata"] and response["ResponseMetadata"]["HTTPStatusCode"] == 200:
+                                            tObj = {}
+                                            tObj['strHash'] = elm[0]
+                                            tObj['translatedText'] = translatedText
+                                            returnResp.append(tObj)
+                                    except Exception as e:
+                                        print(e)
                 
                 #construct response object
                 for itm in retrieved['Translations']:
