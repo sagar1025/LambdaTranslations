@@ -2,10 +2,14 @@
     "dev": {
         "app_function": "translation.app",
         "aws_region": "us-east-2",
-        "profile_name": "dunyanalambda",
+        "profile_name": "myprofilename",
         "project_name": "translation",
         "runtime": "python3.6",
-        "s3_bucket": "zappa-dunyana-translate-ohtqt2fr1",
+        "s3_bucket": "my-zappa-bucket-1234",
         "memory_size": 4096
+    },
+    "prod": {
+        "extends": "dev",
+        "memory_size": 6144
     }
 }
