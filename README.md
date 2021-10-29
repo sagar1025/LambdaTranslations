@@ -84,3 +84,20 @@ curl --location --request POST 'http://127.0.0.1:5000/translate' \
 </pre>
 
 Notice how the response is different. The frontend application can utilize the `strHash` to map the original string with the translated string.
+
+### Deploy this application to lambda
+
+Before proceeding ensure that you have appropriate AWS IAM permissions.
+1. Update the following values in the `zappa_settings.json` file: 
+
+    `aws_region`
+    
+    `profile_name`
+    
+    `s3_bucket`
+    
+2. `zappa deploy dev`
+
+If you have already deployed it and want to run an update, simply run
+
+`zappa update dev`
