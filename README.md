@@ -1,4 +1,4 @@
-# Translate Dynamic and Static data using AWS Lambda.
+# Translate Dynamic and Static Text using AWS Lambda.
 Dynamically translate text into any language on the fly using AWS Lambda. This repo sets up the lambda function that will generate and store the translations.
 
 This uses `Zappa` and `Python`
